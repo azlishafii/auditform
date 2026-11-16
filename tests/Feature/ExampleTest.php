@@ -158,6 +158,16 @@ class ExampleTest extends TestCase
         $this->assertSame(1, FormResponse::count());
     }
 
+    public function test_local_image_urls_are_versioned_so_replaced_images_bypass_browser_cache(): void
+    {
+        $file = public_path('images/uad/book1/kulit-depan.jpg');
+
+        $this->assertSame(asset('images/uad/book1/kulit-depan.jpg').'?v='.filemtime($file), Form::img('/images/uad/book1/kulit-depan.jpg'));
+        $this->assertSame(asset('images/tiada.jpg'), Form::img('/images/tiada.jpg'));
+        $this->assertSame('https://cdn.example.com/a.jpg', Form::img('https://cdn.example.com/a.jpg'));
+        $this->assertSame('', Form::img(null));
+    }
+
     public function test_draft_form_is_hidden_from_public(): void
     {
         $form = $this->makeForm();

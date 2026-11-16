@@ -56,14 +56,25 @@ class Form extends Model
         };
     }
 
-    /** URL imej yang selamat untuk subfolder/domain sementara. */
+    /**
+     * URL imej yang selamat untuk subfolder/domain sementara.
+     * Imej tempatan diberi versi (?v=masa fail diubah) kerana server menyimpan imej dalam cache
+     * pelayar selama 30 hari — apabila imej diganti dengan nama yang sama, URL berubah dan
+     * pelayar memuat turun versi baharu.
+     */
     public static function img(?string $src): string
     {
         if (! $src) {
             return '';
         }
+        if (preg_match('#^https?://#', $src)) {
+            return $src;
+        }
 
-        return preg_match('#^https?://#', $src) ? $src : asset(ltrim($src, '/'));
+        $path = ltrim(parse_url($src, PHP_URL_PATH) ?? '', '/');
+        $file = public_path($path);
+
+        return asset($path).(is_file($file) ? '?v='.filemtime($file) : '');
     }
 
     public static function uniqueSlug(string $title, ?int $ignoreId = null): string
