@@ -24,6 +24,43 @@ Alpine.data('lightbox', () => ({
     get current() { return this.items[this.index] || {}; },
 }));
 
+/* ---------- Tukar PDF kepada imej (dalam pelayar, tanpa keperluan server) ---------- */
+// pdf.js dimuatkan hanya apabila admin import PDF, supaya borang awam kekal ringan.
+async function pdfToImages(file, onProgress) {
+    const [pdfjs, { default: workerUrl }] = await Promise.all([
+        import('pdfjs-dist'),
+        import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+    ]);
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+    const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const base = file.name.replace(/\.pdf$/i, '').replace(/[^\w-]+/g, '-').slice(0, 40) || 'halaman';
+    const images = [];
+
+    for (let n = 1; n <= pdf.numPages; n++) {
+        onProgress?.(n, pdf.numPages);
+        const page = await pdf.getPage(n);
+        const unscaled = page.getViewport({ scale: 1 });
+        // Sisi terpanjang ~2000px: cukup tajam untuk zoom, saiz fail kekal kecil.
+        const scale = Math.min(4, 2000 / Math.max(unscaled.width, unscaled.height));
+        const viewport = page.getViewport({ scale });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+        images.push(new File([blob], `${base}-${n}.jpg`, { type: 'image/jpeg' }));
+        page.cleanup();
+    }
+    await pdf.destroy();
+    return images;
+}
+
 /* ---------- Pembina borang (admin) ---------- */
 const uid = () => Math.random().toString(36).slice(2, 10).padEnd(8, 'x');
 
@@ -126,6 +163,58 @@ Alpine.data('formBuilder', (initial, endpoints) => ({
             if (url) opt.gallery.push({ src: url, caption: file.name.replace(/\.[^.]+$/, '') });
         }
     },
+
+    pdfStatus: '',
+    async readPdf(e) {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return null;
+        if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) { alert('Sila pilih fail PDF.'); return null; }
+        this.uploading++;
+        try {
+            const pages = await pdfToImages(file, (n, total) => (this.pdfStatus = `Menukar halaman ${n}/${total}…`));
+            const urls = [];
+            for (const [i, page] of pages.entries()) {
+                this.pdfStatus = `Memuat naik halaman ${i + 1}/${pages.length}…`;
+                urls.push(await this.upload(page));
+            }
+            return urls;
+        } catch (err) {
+            alert('PDF tidak dapat dibaca: ' + err.message);
+            return null;
+        } finally {
+            this.pdfStatus = '';
+            this.uploading--;
+        }
+    },
+    // Pilih imej: setiap halaman PDF menjadi imej galeri reka bentuk ini.
+    async importPdfToGallery(opt, e) {
+        const replace = opt.gallery.length > 0
+            && confirm('Galeri ini sudah ada imej. Klik OK untuk GANTI galeri dengan halaman PDF, atau Cancel untuk TAMBAH di hujung.');
+        const urls = await this.readPdf(e);
+        if (!urls) return;
+        const items = urls.map((src, i) => ({ src, caption: `Halaman ${i + 1}` })).filter((g) => g.src);
+        opt.gallery = replace ? items : [...opt.gallery, ...items];
+        if (!opt.image && items.length) opt.image = items[0].src;
+    },
+    // Halaman PDF dipadankan ikut susunan pilihan (halaman 1 → pilihan 1, …); halaman lebihan menjadi pilihan baharu.
+    async importPdfToOptions(f, e) {
+        const urls = await this.readPdf(e);
+        if (!urls) return;
+        const noun = f.type === 'image_choice' ? 'Draf' : 'Halaman';
+        let added = 0;
+        urls.forEach((src, i) => {
+            if (!src) return;
+            if (!f.options[i]) { f.options.push(this.blankOption(`${noun} ${i + 1}`)); added++; }
+            f.options[i].image = src;
+        });
+        const unit = f.type === 'image_choice' ? 'reka bentuk' : 'bahagian';
+        const notes = [`${urls.length} halaman diimport.`];
+        if (added) notes.push(`${added} ${unit} baharu ditambah – sila semak nama dan penerangannya.`);
+        if (urls.length < f.options.length) notes.push(`Soalan ini ada ${f.options.length} ${unit}; ${f.options.length - urls.length} ${unit} terakhir mengekalkan imej asal.`);
+        alert(notes.join('\n'));
+    },
+    setCover(opt, src) { opt.image = src; },
 
     async save() {
         this.errors = [];

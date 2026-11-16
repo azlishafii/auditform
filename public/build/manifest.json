@@ -1,6 +1,25 @@
 {
+  "node_modules/pdfjs-dist/build/pdf.mjs": {
+    "file": "assets/pdf-Bm2p5NBK.js",
+    "name": "pdf",
+    "src": "node_modules/pdfjs-dist/build/pdf.mjs",
+    "isDynamicEntry": true
+  },
+  "node_modules/pdfjs-dist/build/pdf.worker.min.mjs": {
+    "file": "assets/pdf.worker.min-yatZIOMy.mjs",
+    "src": "node_modules/pdfjs-dist/build/pdf.worker.min.mjs"
+  },
+  "node_modules/pdfjs-dist/build/pdf.worker.min.mjs?url": {
+    "file": "assets/pdf.worker.min-D00xlTFB.js",
+    "name": "pdf.worker.min",
+    "src": "node_modules/pdfjs-dist/build/pdf.worker.min.mjs?url",
+    "isDynamicEntry": true,
+    "assets": [
+      "assets/pdf.worker.min-yatZIOMy.mjs"
+    ]
+  },
   "resources/css/app.css": {
-    "file": "assets/app-CflJ4pDf.css",
+    "file": "assets/app-ByxlBEor.css",
     "name": "app",
     "names": [
       "app.css"
@@ -9,9 +28,13 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-kreXphcS.js",
+    "file": "assets/app-Kvfq-wQQ.js",
     "name": "app",
     "src": "resources/js/app.js",
-    "isEntry": true
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/pdfjs-dist/build/pdf.mjs",
+      "node_modules/pdfjs-dist/build/pdf.worker.min.mjs?url"
+    ]
   }
 }

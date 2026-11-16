@@ -176,19 +176,37 @@
                                                     <div class="rounded-lg border border-slate-200 p-1.5">
                                                         <img :src="g.src" class="mb-1.5 h-24 w-full rounded object-cover object-top">
                                                         <input type="text" x-model="g.caption" class="w-full rounded border border-slate-200 px-1.5 py-1 text-xs" placeholder="Kapsyen">
-                                                        <button type="button" @click="o.gallery.splice(gi, 1)" class="mt-1 text-xs text-red-600 hover:underline">Buang</button>
+                                                        <div class="mt-1 flex items-center justify-between gap-2">
+                                                            <button type="button" @click="o.gallery.splice(gi, 1)" class="text-xs text-red-600 hover:underline">Buang</button>
+                                                            <button type="button" x-show="o.image !== g.src" @click="setCover(o, g.src)" class="text-xs text-brand-700 hover:underline">Jadikan imej utama</button>
+                                                            <span x-show="o.image === g.src" class="text-xs font-medium text-emerald-700">Imej utama</span>
+                                                        </div>
                                                     </div>
                                                 </template>
                                             </div>
-                                            <label class="btn-ghost mt-2 cursor-pointer text-xs">+ Tambah imej galeri
-                                                <input type="file" accept="image/*" multiple class="hidden" @change="addGallery(o, $event)">
-                                            </label>
+                                            <div class="mt-2 flex flex-wrap gap-2">
+                                                <label class="btn-ghost cursor-pointer text-xs">+ Tambah imej galeri
+                                                    <input type="file" accept="image/*" multiple class="hidden" @change="addGallery(o, $event)">
+                                                </label>
+                                                <label class="btn-ghost cursor-pointer text-xs" :class="uploading && 'pointer-events-none opacity-50'">📄 Import PDF (setiap halaman jadi imej)
+                                                    <input type="file" accept="application/pdf,.pdf" class="hidden" @change="importPdfToGallery(o, $event)">
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </template>
                         </div>
-                        <button type="button" @click="addOption(f)" class="btn-ghost mt-3 text-xs" x-text="f.type === 'part_feedback' ? '+ Tambah bahagian' : (f.type === 'image_choice' ? '+ Tambah reka bentuk' : '+ Tambah pilihan')"></button>
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <button type="button" @click="addOption(f)" class="btn-ghost text-xs" x-text="f.type === 'part_feedback' ? '+ Tambah bahagian' : (f.type === 'image_choice' ? '+ Tambah reka bentuk' : '+ Tambah pilihan')"></button>
+                            <label x-show="hasImages(f.type)" class="btn-ghost cursor-pointer text-xs" :class="uploading && 'pointer-events-none opacity-50'">
+                                <span x-text="f.type === 'part_feedback' ? '📄 Import PDF ke bahagian' : '📄 Import PDF (satu halaman = satu reka bentuk)'"></span>
+                                <input type="file" accept="application/pdf,.pdf" class="hidden" @change="importPdfToOptions(f, $event)">
+                            </label>
+                        </div>
+                        <p x-show="hasImages(f.type)" class="mt-1.5 text-xs text-slate-500" x-text="f.type === 'part_feedback'
+                            ? 'Halaman PDF dipadankan ikut susunan: halaman 1 → bahagian 1, halaman 2 → bahagian 2, dan seterusnya. Halaman lebihan menjadi bahagian baharu.'
+                            : 'Halaman PDF menjadi imej utama ikut susunan: halaman 1 → reka bentuk 1, dan seterusnya. Halaman lebihan menjadi reka bentuk baharu. Untuk PDF satu buku penuh, guna butang Import PDF dalam galeri reka bentuk itu.'"></p>
                     </div>
                 </div>
             </div>
@@ -212,7 +230,7 @@
     {{-- Bar simpan --}}
     <div class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-            <p class="text-sm text-slate-500"><span x-show="uploading" class="font-medium text-brand-700">Memuat naik imej…</span><span x-show="!uploading && dirty">Ada perubahan belum disimpan</span></p>
+            <p class="text-sm text-slate-500"><span x-show="uploading" class="font-medium text-brand-700" x-text="pdfStatus || 'Memuat naik imej…'"></span><span x-show="!uploading && dirty">Ada perubahan belum disimpan</span></p>
             <div class="flex gap-2">
                 <a href="{{ $form->exists ? route('admin.forms.results', $form) : route('admin.forms.index') }}" class="btn-ghost">Batal</a>
                 <button type="button" @click="save()" :disabled="saving || uploading > 0" class="btn-primary" x-text="saving ? 'Menyimpan…' : 'Simpan borang'"></button>
