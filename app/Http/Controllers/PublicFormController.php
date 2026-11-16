@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\NewFormResponseMail;
 use App\Models\Form;
 use App\Models\FormField;
 use App\Models\FormResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
+
+use function Illuminate\Support\defer;
 
 class PublicFormController extends Controller
 {
@@ -53,7 +59,7 @@ class PublicFormController extends Controller
             return back()->withErrors($errors)->withInput();
         }
 
-        DB::transaction(function () use ($form, $request, $clean, $isTest) {
+        $response = DB::transaction(function () use ($form, $request, $clean, $isTest) {
             $response = FormResponse::create([
                 'form_id' => $form->id,
                 'is_test' => $isTest,
@@ -68,7 +74,13 @@ class PublicFormController extends Controller
                     'comment' => $row['comment'],
                 ]);
             }
+
+            return $response;
         });
+
+        if (! $isTest) {
+            $this->notifyNewResponse($response);
+        }
 
         $redirect = redirect()->route('form.thanks', $form->slug);
 
@@ -88,6 +100,30 @@ class PublicFormController extends Controller
             'already' => ! $request->session()->has('just_submitted'),
             'test' => (bool) $request->session()->get('test_submission') && $request->user(),
         ]);
+    }
+
+    /**
+     * E-mel kepada admin selepas respons dihantar ke pelayar, supaya responden tidak menunggu SMTP.
+     * Kegagalan e-mel hanya dilog dan tidak menjejaskan maklum balas yang telah disimpan.
+     */
+    private function notifyNewResponse(FormResponse $response): void
+    {
+        $recipients = config('mail.notify_to');
+
+        if (! $recipients) {
+            return;
+        }
+
+        defer(function () use ($response, $recipients) {
+            try {
+                Mail::to($recipients)->send(new NewFormResponseMail($response));
+            } catch (Throwable $e) {
+                Log::warning('Notifikasi e-mel maklum balas gagal dihantar.', [
+                    'form_response_id' => $response->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     private function alreadySubmitted(Request $request, Form $form): bool

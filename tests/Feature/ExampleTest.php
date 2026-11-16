@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Mail\NewFormResponseMail;
 use App\Models\Form;
 use App\Models\FormResponse;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -117,6 +119,43 @@ class ExampleTest extends TestCase
         $real = FormResponse::create(['form_id' => $form->id, 'respondent_name' => 'Sebenar']);
         $this->actingAs($user)->delete(route('admin.forms.tests.destroy', $form))->assertRedirect();
         $this->assertSame([$real->id], FormResponse::pluck('id')->all());
+    }
+
+    public function test_admin_is_emailed_for_real_responses_but_not_test_responses(): void
+    {
+        Mail::fake();
+        $this->withoutDefer();
+        config(['mail.notify_to' => ['uad@example.com']]);
+        $form = $this->makeForm();
+        $payload = ['respondent_name' => 'Ali', 'answers' => [$form->fields[0]->id => 'draf2']];
+
+        $this->post("/f/{$form->slug}", $payload)->assertRedirect(route('form.thanks', $form->slug));
+
+        Mail::assertSent(NewFormResponseMail::class, function (NewFormResponseMail $mail) {
+            $mail->assertSeeInHtml('Ali');
+            $mail->assertSeeInHtml('B');
+
+            return $mail->hasTo('uad@example.com') && $mail->hasSubject('Maklum balas baharu: Ujian');
+        });
+
+        // Hantaran ujian admin pada borang draf tidak menghantar e-mel
+        Mail::fake();
+        $form->update(['status' => 'draft']);
+        $this->actingAs(User::factory()->create())->post("/f/{$form->slug}", $payload);
+        Mail::assertNothingSent();
+    }
+
+    public function test_response_is_saved_even_when_email_fails(): void
+    {
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('SMTP tidak tersedia'));
+        $this->withoutDefer();
+        config(['mail.notify_to' => ['uad@example.com']]);
+        $form = $this->makeForm();
+
+        $this->post("/f/{$form->slug}", ['respondent_name' => 'Ali', 'answers' => [$form->fields[0]->id => 'draf1']])
+            ->assertRedirect(route('form.thanks', $form->slug));
+
+        $this->assertSame(1, FormResponse::count());
     }
 
     public function test_draft_form_is_hidden_from_public(): void

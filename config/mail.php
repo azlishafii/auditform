@@ -115,4 +115,20 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Penerima Notifikasi Maklum Balas
+    |--------------------------------------------------------------------------
+    |
+    | Senarai e-mel (dipisahkan koma) yang menerima e-mel setiap kali borang
+    | menerima maklum balas sebenar. Jika kosong, ADMIN_EMAIL digunakan.
+    | Tetapkan MAIL_NOTIFY_TO=none untuk mematikan notifikasi.
+    |
+    */
+
+    'notify_to' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) (env('MAIL_NOTIFY_TO') ?: env('ADMIN_EMAIL', '')))
+    ), fn (string $email): bool => $email !== '' && $email !== 'none')),
+
 ];
