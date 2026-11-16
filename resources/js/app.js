@@ -26,12 +26,16 @@ Alpine.data('lightbox', () => ({
 
 /* ---------- Tukar PDF kepada imej (dalam pelayar, tanpa keperluan server) ---------- */
 // pdf.js dimuatkan hanya apabila admin import PDF, supaya borang awam kekal ringan.
+// Worker dibina oleh Vite sebagai fail .js (bukan .mjs) kerana sesetengah server (cth: nginx
+// FlashPanel) menghantar .mjs sebagai application/octet-stream dan pelayar enggan menjalankannya.
+let pdfWorker = null;
 async function pdfToImages(file, onProgress) {
-    const [pdfjs, { default: workerUrl }] = await Promise.all([
+    const [pdfjs, { default: PdfWorker }] = await Promise.all([
         import('pdfjs-dist'),
-        import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+        import('pdfjs-dist/build/pdf.worker.min.mjs?worker'),
     ]);
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    pdfWorker ??= new PdfWorker();
+    pdfjs.GlobalWorkerOptions.workerPort = pdfWorker;
 
     const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
     const base = file.name.replace(/\.pdf$/i, '').replace(/[^\w-]+/g, '-').slice(0, 40) || 'halaman';
